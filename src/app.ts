@@ -1,21 +1,27 @@
 import express, { Application } from 'express';
 import {config} from 'dotenv';
 import issueRoutes from './routes/issueRoutes';
-import { scrapeOrganizations } from './utils/scraper';
-import axios from 'axios';
-import fs from 'fs';
+import goscRoutes from './routes/gsoc';
+import cors from 'cors';
+import ConnectToDB from './db/db';
 
 // Load environment variables
 config({
     path: "./.env",
   });
   
+ConnectToDB()
 
 const app: Application = express();
 const PORT = process.env.PORT || 7000;
 
 // Middleware
 app.use(express.json());
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+}));
 
 // Routes
 app.get('/', async (req, res) => {
@@ -23,6 +29,7 @@ app.get('/', async (req, res) => {
 });
 
 app.use('/api/issues', issueRoutes);
+app.use('/api/gsoc', goscRoutes);
 
 
 // Start the server

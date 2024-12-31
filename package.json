@@ -14,12 +14,15 @@
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mongoose": "^8.9.3",
     "playwright": "^1.49.1",
     "puppeteer": "^23.11.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "ts-node": "^10.9.2",
