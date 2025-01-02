@@ -21,6 +21,12 @@ export const fetchGSocOrganizations = async (): Promise<string[]> => {
     return orgs_github;
 };
 
+export const getOrgName = async (github: string): Promise<string> => {
+    const url = new URL(github);
+    const orgName = url.pathname.replace(/^\/|\/$/g, '');
+    return orgName;
+};
+
 export const fetchUnassignedIssues = async (organizations: string[]): Promise<any[]> => {
     const allIssues: any[] = [];
 
@@ -31,7 +37,7 @@ export const fetchUnassignedIssues = async (organizations: string[]): Promise<an
                 headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
             });
             const repos = reposResponse.data;
-            console.log(repos, "here are repos");
+            // console.log(repos, "here are repos");
 
             for (const repo of repos) {
                 try {
