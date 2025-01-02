@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import {config} from 'dotenv';
 import issueRoutes from './routes/issueRoutes';
 import goscRoutes from './routes/gsoc';
+import dataRoutes from './routes/data';
 import cors from 'cors';
 import ConnectToDB from './db/db';
 
@@ -30,6 +31,7 @@ app.get('/', async (req, res) => {
 
 app.use('/api/issues', issueRoutes);
 app.use('/api/gsoc', goscRoutes);
+app.use('/api/data', dataRoutes);
 
 
 // Start the server

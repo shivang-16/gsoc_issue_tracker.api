@@ -6,72 +6,57 @@ import { getOrgName } from '../../services/gsoc';
 
 export const getGsocOrganizations = async (req: Request, res: Response): Promise<void> => {
     try {
-//         const organizations = await db.collection('gsoc_orgs').find().toArray();
+        // Fetch filters from the query parameters
+        const { top, filters } = req.query;
+        console.log('Filters:', filters); // Log the filters
 
-//         console.log('here')
-//         // Fetch details from GitHub for each organization
-//         const orgDetailsPromises = organizations.map(async (org) => {
-//             const orgName = await getOrgName(org.github); // Assuming you have a function to get the org name
-//             const response = await axios.get(`${GITHUB_API_URL}/orgs/${orgName}`, {
-//                 headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
-//             });
-//             const followers = response.data.followers;
-//             const forks = response.data.public_repos; // Assuming forks are represented by public repos
+        // Check if filters is defined before parsing
+        const parsedFilters = filters ? JSON.parse(filters as string) : {};
+        const { technologies = [], topics = [], gsoc_years = [], organization = '' } = parsedFilters;
 
-//             // Update the organization in the database
-//             await db.collection('gsoc_orgs').updateOne(
-//                 { _id: org._id }, // Match the organization by its ID
-//                 { $set: { followers, forks } } // Update followers and forks
-//             );
+        // Build the query object
+        let query: any = {};
 
-//             return {
-//                 ...org,
-//                 followers,
-//                 forks,
-//             };
-//         });
-
-// // Initiate updates in the background
-//         orgDetailsPromises.forEach(promise => promise.catch(console.error)); // Log any errors
-        // Fetch updated organizations from the database
-        const updatedOrganizations = await db.collection('gsoc_orgs').find().toArray();
-        // console.log(updatedOrganizations);
-
-        // Check if a query is present
-        const { top } = req.query; // Adjust based on how you are passing the query
-        let sortedOrgs;
-        console.log(top, "here is top");
-
-
-        if (top === 'true') {
-             console.log("top");
-            // Sort by followers and forks, and get the top 10
-            sortedOrgs = updatedOrganizations.sort((a, b) => {
-                if (b.followers !== a.followers) {
-                    return b.followers - a.followers; // Sort by followers descending
-                } else {
-                    return b.forks - a.forks; // Sort by forks descending
-                }
-            }).slice(0, 10);
-        } else {
-
-            console.log("not top");
-            // Sort all organizations by followers and forks
-            sortedOrgs = updatedOrganizations.sort((a, b) => {
-                if (b.followers !== a.followers) {
-                    return b.followers - a.followers; // Sort by followers descending
-                } else {
-                    return b.forks - a.forks; // Sort by forks descending
-                }
-            });
+        // Add search query if present
+        if (organization) {
+            query.organisation = { $regex: new RegExp(organization as string, 'i') }; // Case-insensitive search
         }
 
-        // Return the sorted organizations
-        res.json(sortedOrgs);
+        if (technologies.length > 0) {
+            query.technologies = { $in: technologies }; // Use the array directly
+        }
+        if (topics.length > 0) {
+            query.topics = { $in: topics }; // Use the array directly
+        }
+        if (gsoc_years.length > 0) {
+            query.$or = gsoc_years.map((year: string) => ({ [`gsoc_years.${year}`]: { $exists: true } }));
+        }
+
+        // console.log('Query:', query);
+
+        // Define sorting criteria
+        const sortCriteria: any = {
+            followers: -1, // Sort by followers descending
+            forks: -1,     // Sort by forks descending if followers are equal
+        };
+
+        // Fetch filtered and sorted organizations
+        const filteredOrganizations = await db.collection('gsoc_orgs')
+            .find(query)
+            .sort(sortCriteria)
+            // .limit(top === 'true' ? 10 : 0) // Limit to top 10 if `top` is true
+            .toArray();
+
+        // console.log('Filtered Organizations:', filteredOrganizations);
+
+        // Return the filtered organizations
+        res.json(filteredOrganizations);
     } catch (error: any) {
+        console.error('Error:', error.message);
         res.status(500).json({ error: error.message });
     }
 };
+
 
 export const getUnassignedIssues = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -83,7 +68,7 @@ export const getUnassignedIssues = async (req: Request, res: Response): Promise<
         // console.log(repos, "here are repos");
 
         // Find the repository with the most open issues
-        const repoWithMostOpenIssues = repos.reduce((prev, current) => {
+        const repoWithMostOpenIssues = repos.reduce((prev: { open_issues: number; }, current: { open_issues: number; }) => {
             return (prev.open_issues > current.open_issues) ? prev : current;
         });
 
@@ -115,7 +100,7 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
         // console.log(repos, "here are repos");
 
         // Find the repository with the most open issues
-        const repoWithMostOpenIssues = repos.reduce((prev, current) => {
+        const repoWithMostOpenIssues = repos.reduce((prev: { open_issues: number; }, current: { open_issues: number; }) => {
             return (prev.open_issues > current.open_issues) ? prev : current;
         });
 
