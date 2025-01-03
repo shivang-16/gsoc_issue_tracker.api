@@ -57,7 +57,7 @@ export const getGsocOrganizations = async (req: Request, res: Response): Promise
 
         // Calculate total pages
         const totalPages = Math.ceil(totalDocuments / parsedLimit);
-        console.log(filteredOrganizations, 'here is the filtered organizations');
+        console.log(filteredOrganizations.length, 'here is the filtered organizations');
 
         // Return the filtered organizations with pagination metadata
         res.json({
@@ -148,8 +148,6 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
 
-        console.log(organizations, 'here is the query');
-        console.log(query, 'here is the query');
 
         // Step 2: Fetch issues from the database, filtering and sorting by date and comments
         const totalDocuments = await db.collection('gsoc_issues').countDocuments(query);

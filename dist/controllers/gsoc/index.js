@@ -51,7 +51,7 @@ const getGsocOrganizations = async (req, res) => {
             .toArray();
         // Calculate total pages
         const totalPages = Math.ceil(totalDocuments / parsedLimit);
-        console.log(filteredOrganizations, 'here is the filtered organizations');
+        console.log(filteredOrganizations.length, 'here is the filtered organizations');
         // Return the filtered organizations with pagination metadata
         res.json({
             currentPage: parsedPage,
@@ -129,8 +129,6 @@ const getPopularIssues = async (req, res) => {
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
-        console.log(organizations, 'here is the query');
-        console.log(query, 'here is the query');
         // Step 2: Fetch issues from the database, filtering and sorting by date and comments
         const totalDocuments = await db_1.db.collection('gsoc_issues').countDocuments(query);
         const issues = await db_1.db.collection('gsoc_issues')
