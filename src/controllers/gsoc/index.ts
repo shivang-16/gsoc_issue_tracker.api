@@ -154,7 +154,7 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
         const totalDocuments = await db.collection('gsoc_issues').countDocuments(query);
         const allIssues = await db.collection('gsoc_issues')
             .find(query)
-            .sort({ comments: -1, created_at: -1 })
+            .sort({created_at: -1 })
             .toArray();  // Fetch all issues without pagination for organization filtering
 
         // Step 3: If organizations are provided, filter issues by organization
