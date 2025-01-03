@@ -11,9 +11,7 @@ let db;
 const ConnectToDB = async () => {
     const DatabaseUrl = process.env.DB_URL;
     try {
-        await mongoose_1.default.connect(DatabaseUrl, {
-            autoIndex: true, // Enable automatic index creation
-        });
+        await mongoose_1.default.connect(DatabaseUrl);
         exports.db = db = mongoose_1.default.connection;
         console.log("DB Connected.");
     }

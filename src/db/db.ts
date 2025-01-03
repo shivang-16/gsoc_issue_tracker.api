@@ -7,11 +7,9 @@ let db: mongoose.Connection;
 
 const ConnectToDB = async () => {
   const DatabaseUrl = process.env.DB_URL as string;
-  
+  console.log(DatabaseUrl, "here is the database url");
   try {
-    await mongoose.connect(DatabaseUrl, {
-      autoIndex: true, // Enable automatic index creation
-    });
+    await mongoose.connect(DatabaseUrl);
     db = mongoose.connection;
     console.log("DB Connected.");
 
