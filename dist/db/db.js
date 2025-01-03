@@ -10,6 +10,7 @@ dotenv_1.default.config();
 let db;
 const ConnectToDB = async () => {
     const DatabaseUrl = process.env.DB_URL;
+    console.log(DatabaseUrl, "here is the database url");
     try {
         await mongoose_1.default.connect(DatabaseUrl);
         exports.db = db = mongoose_1.default.connection;
