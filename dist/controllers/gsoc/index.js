@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPopularIssuesAndSave = exports.getPopularIssues = exports.getUnassignedIssues = exports.getGsocOrganizationsNames = exports.getGsocOrganizations = void 0;
+exports.getOrganizationDetails = exports.getPopularIssuesAndSave = exports.getPopularIssues = exports.getUnassignedIssues = exports.getGsocOrganizationsNames = exports.getGsocOrganizations = void 0;
 const db_1 = require("../../db/db");
 const axios_1 = __importDefault(require("axios"));
 const env_1 = require("../../config/env");
 const gsoc_1 = require("../../services/gsoc");
+const mongoose_1 = __importDefault(require("mongoose"));
 const getGsocOrganizations = async (req, res) => {
     try {
         // Fetch filters and pagination parameters from the query
@@ -124,12 +125,12 @@ const getPopularIssues = async (req, res) => {
         const parsedPage = parseInt(page, 10);
         const parsedLimit = parseInt(limit, 10);
         const skip = (parsedPage - 1) * parsedLimit;
+        console.log(organizations, "here is the org names");
         // Step 1: Build the query with optional filters
         const query = {};
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
-        console.log(query, 'here is the query');
         // Step 2: Fetch issues from the database, filtering by labels and sorting by date and comments
         const totalDocuments = await db_1.db.collection('gsoc_issues').countDocuments(query);
         const allIssues = await db_1.db.collection('gsoc_issues')
@@ -141,7 +142,6 @@ const getPopularIssues = async (req, res) => {
         const filteredIssues = orgNames.length > 0
             ? allIssues.filter((issue) => {
                 const orgNameFromUrl = issue.html_url.split('https://github.com/')[1]?.split('/')[0];
-                console.log(orgNameFromUrl, "here is the org name from url");
                 return orgRegex.test(orgNameFromUrl);
             })
             : allIssues;
@@ -149,6 +149,7 @@ const getPopularIssues = async (req, res) => {
         const paginatedIssues = filteredIssues.slice(skip, skip + parsedLimit);
         // Calculate total pages
         const totalPages = Math.ceil(filteredIssues.length / parsedLimit);
+        // console.log(paginatedIssues, "here are the total pages");
         // Return paginated popular issues with metadata
         res.json({
             currentPage: parsedPage,
@@ -231,6 +232,7 @@ const getPopularIssuesAndSave = async (req, res) => {
                 return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // Sort by date descending
             }
         });
+        console.log(popularIssues.length, "here are the popular issues");
         // Return the popular issues
         res.json(popularIssues.slice(0, 200));
     }
@@ -240,3 +242,23 @@ const getPopularIssuesAndSave = async (req, res) => {
     }
 };
 exports.getPopularIssuesAndSave = getPopularIssuesAndSave;
+const getOrganizationDetails = async (req, res) => {
+    try {
+        const orgId = req.query.orgId;
+        console.log(orgId, "here is the org id");
+        if (!orgId) {
+            return res.status(400).json({ error: 'Organization ID is required' });
+        }
+        const organizationDetails = await db_1.db.collection('gsoc_orgs').findOne({ _id: new mongoose_1.default.Types.ObjectId(orgId) });
+        // console.log(organizationDetails, "here is the org details");
+        if (!organizationDetails) {
+            return res.status(404).json({ error: 'Organization not found' });
+        }
+        res.json(organizationDetails);
+    }
+    catch (error) {
+        console.error('Error fetching organization details:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.getOrganizationDetails = getOrganizationDetails;
