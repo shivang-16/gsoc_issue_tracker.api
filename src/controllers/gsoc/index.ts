@@ -6,18 +6,18 @@ import { getOrgName } from '../../services/gsoc';
 
 export const getGsocOrganizations = async (req: Request, res: Response): Promise<void> => {
     try {
-        // Fetch filters from the query parameters
-        const { top, filters } = req.query;
+        // Fetch filters and pagination parameters from the query
+        const { top, filters, page = '1', limit = '10' } = req.query;
+
         console.log('Filters:', filters); // Log the filters
 
-        // Check if filters is defined before parsing
+        // Parse filters
         const parsedFilters = filters ? JSON.parse(filters as string) : {};
         const { technologies = [], topics = [], gsoc_years = [], organization = '' } = parsedFilters;
 
         // Build the query object
         let query: any = {};
 
-        // Add search query if present
         if (organization) {
             query.organisation = { $regex: new RegExp(organization as string, 'i') }; // Case-insensitive search
         }
@@ -32,25 +32,38 @@ export const getGsocOrganizations = async (req: Request, res: Response): Promise
             query.$or = gsoc_years.map((year: string) => ({ [`gsoc_years.${year}`]: { $exists: true } }));
         }
 
-        // console.log('Query:', query);
-
         // Define sorting criteria
         const sortCriteria: any = {
             followers: -1, // Sort by followers descending
             forks: -1,     // Sort by forks descending if followers are equal
         };
 
-        // Fetch filtered and sorted organizations
+        // Parse pagination parameters
+        const parsedPage = parseInt(page as string, 10);
+        const parsedLimit = parseInt(limit as string, 10);
+        const skip = (parsedPage - 1) * parsedLimit;
+
+        // Fetch filtered and paginated organizations
         const filteredOrganizations = await db.collection('gsoc_orgs')
             .find(query)
             .sort(sortCriteria)
-            // .limit(top === 'true' ? 10 : 0) // Limit to top 10 if `top` is true
+            .skip(skip) // Skip documents for pagination
+            .limit(parsedLimit) // Limit results per page
             .toArray();
 
-        // console.log('Filtered Organizations:', filteredOrganizations);
+        // Count total documents for pagination metadata
+        const totalDocuments = await db.collection('gsoc_orgs').countDocuments(query);
 
-        // Return the filtered organizations
-        res.json(filteredOrganizations);
+        // Calculate total pages
+        const totalPages = Math.ceil(totalDocuments / parsedLimit);
+
+        // Return the filtered organizations with pagination metadata
+        res.json({
+            currentPage: parsedPage,
+            totalPages,
+            totalDocuments,
+            organizations: filteredOrganizations,
+        });
     } catch (error: any) {
         console.error('Error:', error.message);
         res.status(500).json({ error: error.message });
@@ -90,10 +103,9 @@ export const getUnassignedIssues = async (req: Request, res: Response): Promise<
     }
 };
 
-
 export const getPopularIssues = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { label, organizations } = req.query;  // Extract label and organizations from the query
+        const { label, organizations, page = '1', limit = '25' } = req.query; // Add pagination parameters
         const currentDate = new Date();
         const startOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const startOfPreviousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
@@ -102,22 +114,27 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
         const orgNames = Array.isArray(organizations) ? organizations : organizations ? [organizations] : [];
         const labelString = label ? String(label) : '';
 
-        
+        // Parse pagination parameters
+        const parsedPage = parseInt(page as string, 10);
+        const parsedLimit = parseInt(limit as string, 10);
+        const skip = (parsedPage - 1) * parsedLimit;
 
         // Step 1: Build the query with optional filters
         const query: any = {};
-        console.log(organizations, 'here is the query');
-
-        // If a label is provided, filter by label using regex
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
 
+        console.log(organizations, 'here is the query');
         console.log(query, 'here is the query');
+
         // Step 2: Fetch issues from the database, filtering and sorting by date and comments
-        const issues = await db.collection('gsoc_issues').find(query)
+        const totalDocuments = await db.collection('gsoc_issues').countDocuments(query);
+        const issues = await db.collection('gsoc_issues')
+            .find(query)
             .sort({ comments: -1, created_at: -1 })
-            .limit(800)
+            .skip(skip) // Skip documents for pagination
+            .limit(parsedLimit) // Limit results per page
             .toArray();
 
         // Step 3: If organizations are provided, filter issues by organization
@@ -129,19 +146,22 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
             })
             : issues;
 
-        // Limit the number of issues to 200
-        const popularIssues = filteredIssues.slice(0, 200);
+        // Calculate total pages
+        const totalPages = Math.ceil(totalDocuments / parsedLimit);
 
-        // Return the popular issues
-        console.log(popularIssues.length, "here are popular issues");
-        res.json(popularIssues);
+        // Return paginated popular issues with metadata
+        res.json({
+            currentPage: parsedPage,
+            totalPages,
+            totalDocuments,
+            issues: filteredIssues,
+        });
 
     } catch (error: any) {
         console.error("Error fetching popular issues:", error);
         res.status(500).json({ error: error.message });
     }
 };
-
 
 
 
