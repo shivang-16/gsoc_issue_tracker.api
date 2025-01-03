@@ -11,10 +11,8 @@ config({
     path: "./.env",
   });
   
-ConnectToDB()
 
-const app: Application = express();
-const PORT = process.env.PORT || 7000;
+export const app: Application = express();
 
 // Middleware
 app.use(express.json());
@@ -34,7 +32,4 @@ app.use('/api/gsoc', goscRoutes);
 app.use('/api/data', dataRoutes);
 
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+

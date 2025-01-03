@@ -1,10 +1,10 @@
 {
   "name": "github_issue_tracker.api",
   "version": "1.0.0",
-  "main": "app.ts",
+  "main": "server.ts",
   "scripts": {
-    "dev": "concurrently \"tsc -w\" \"nodemon dist/app.js\"",
-    "start": "node dist/app.js",
+    "dev": "concurrently \"tsc -w\" \"nodemon dist/server.js\"",
+    "start": "node dist/server.js",
     "build": "tsc"
   },
   "author": "",
