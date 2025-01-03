@@ -7,4 +7,5 @@ const router = (0, express_1.Router)();
 router.get('/orgs', gsoc_2.getGsocOrganizations);
 router.get('/issues', gsoc_1.getUnassignedIssues);
 router.get('/issues/popular', gsoc_1.getPopularIssues);
+router.get('/orgs/name', gsoc_1.getGsocOrganizationsNames);
 exports.default = router;

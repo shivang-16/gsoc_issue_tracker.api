@@ -7,13 +7,13 @@ import { getOrgName } from '../../services/gsoc';
 export const getGsocOrganizations = async (req: Request, res: Response): Promise<void> => {
     try {
         // Fetch filters and pagination parameters from the query
-        const { top, filters, page = '1', limit = '10' } = req.query;
+        const { top, filters } = req.query;
 
         console.log('Filters:', filters); // Log the filters
 
         // Parse filters
         const parsedFilters = filters ? JSON.parse(filters as string) : {};
-        const { technologies = [], topics = [], gsoc_years = [], organization = '' } = parsedFilters;
+        const { technologies = [], topics = [], gsoc_years = [], organization = '', page = '1', limit = '10' } = parsedFilters;
 
         // Build the query object
         let query: any = {};
@@ -32,6 +32,7 @@ export const getGsocOrganizations = async (req: Request, res: Response): Promise
             query.$or = gsoc_years.map((year: string) => ({ [`gsoc_years.${year}`]: { $exists: true } }));
         }
 
+        console.log(query, 'here is the query');
         // Define sorting criteria
         const sortCriteria: any = {
             followers: -1, // Sort by followers descending
@@ -39,29 +40,51 @@ export const getGsocOrganizations = async (req: Request, res: Response): Promise
         };
 
         // Parse pagination parameters
-        const parsedPage = parseInt(page as string, 10);
-        const parsedLimit = parseInt(limit as string, 10);
+        const parsedPage = Math.max(parseInt(page as string, 10) || 1, 1); // Ensure page is at least 1
+        const parsedLimit = Math.max(parseInt(limit as string, 10) || 10, 1); // Ensure limit is at least 1
         const skip = (parsedPage - 1) * parsedLimit;
-
-        // Fetch filtered and paginated organizations
-        const filteredOrganizations = await db.collection('gsoc_orgs')
-            .find(query)
-            .sort(sortCriteria)
-            .skip(skip) // Skip documents for pagination
-            .limit(parsedLimit) // Limit results per page
-            .toArray();
 
         // Count total documents for pagination metadata
         const totalDocuments = await db.collection('gsoc_orgs').countDocuments(query);
 
+        // Fetch filtered and paginated organizations
+        const filteredOrganizations = await db.collection('gsoc_orgs')
+            .find(query) // Search entire collection with the query
+            .sort(sortCriteria) // Apply sorting
+            .skip(skip) // Skip documents for pagination
+            .limit(parsedLimit) // Limit results per page
+            .toArray();
+
         // Calculate total pages
         const totalPages = Math.ceil(totalDocuments / parsedLimit);
+        console.log(filteredOrganizations, 'here is the filtered organizations');
 
         // Return the filtered organizations with pagination metadata
         res.json({
             currentPage: parsedPage,
             totalPages,
             totalDocuments,
+            organizations: filteredOrganizations,
+        });
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const getGsocOrganizationsNames = async (req: Request, res: Response): Promise<void> => {
+    try {
+        // Fetch filters and pagination parameters from the query
+        
+
+        // Fetch filtered and paginated organizations
+        const filteredOrganizations = await db.collection('gsoc_orgs')
+            .find({}) // Search entire collection with the query
+            .project({ _id: 0, organisation: 1, github: 1 }) // Exclude _id field
+            .toArray();
+
+        // Return the filtered organizations with pagination metadata
+        res.json({
             organizations: filteredOrganizations,
         });
     } catch (error: any) {

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPopularIssuesAndSave = exports.getPopularIssues = exports.getUnassignedIssues = exports.getGsocOrganizations = void 0;
+exports.getPopularIssuesAndSave = exports.getPopularIssues = exports.getUnassignedIssues = exports.getGsocOrganizationsNames = exports.getGsocOrganizations = void 0;
 const db_1 = require("../../db/db");
 const axios_1 = __importDefault(require("axios"));
 const env_1 = require("../../config/env");
@@ -11,11 +11,11 @@ const gsoc_1 = require("../../services/gsoc");
 const getGsocOrganizations = async (req, res) => {
     try {
         // Fetch filters and pagination parameters from the query
-        const { top, filters, page = '1', limit = '10' } = req.query;
+        const { top, filters } = req.query;
         console.log('Filters:', filters); // Log the filters
         // Parse filters
         const parsedFilters = filters ? JSON.parse(filters) : {};
-        const { technologies = [], topics = [], gsoc_years = [], organization = '' } = parsedFilters;
+        const { technologies = [], topics = [], gsoc_years = [], organization = '', page = '1', limit = '10' } = parsedFilters;
         // Build the query object
         let query = {};
         if (organization) {
@@ -30,26 +30,28 @@ const getGsocOrganizations = async (req, res) => {
         if (gsoc_years.length > 0) {
             query.$or = gsoc_years.map((year) => ({ [`gsoc_years.${year}`]: { $exists: true } }));
         }
+        console.log(query, 'here is the query');
         // Define sorting criteria
         const sortCriteria = {
             followers: -1, // Sort by followers descending
             forks: -1, // Sort by forks descending if followers are equal
         };
         // Parse pagination parameters
-        const parsedPage = parseInt(page, 10);
-        const parsedLimit = parseInt(limit, 10);
+        const parsedPage = Math.max(parseInt(page, 10) || 1, 1); // Ensure page is at least 1
+        const parsedLimit = Math.max(parseInt(limit, 10) || 10, 1); // Ensure limit is at least 1
         const skip = (parsedPage - 1) * parsedLimit;
+        // Count total documents for pagination metadata
+        const totalDocuments = await db_1.db.collection('gsoc_orgs').countDocuments(query);
         // Fetch filtered and paginated organizations
         const filteredOrganizations = await db_1.db.collection('gsoc_orgs')
-            .find(query)
-            .sort(sortCriteria)
+            .find(query) // Search entire collection with the query
+            .sort(sortCriteria) // Apply sorting
             .skip(skip) // Skip documents for pagination
             .limit(parsedLimit) // Limit results per page
             .toArray();
-        // Count total documents for pagination metadata
-        const totalDocuments = await db_1.db.collection('gsoc_orgs').countDocuments(query);
         // Calculate total pages
         const totalPages = Math.ceil(totalDocuments / parsedLimit);
+        console.log(filteredOrganizations, 'here is the filtered organizations');
         // Return the filtered organizations with pagination metadata
         res.json({
             currentPage: parsedPage,
@@ -64,6 +66,25 @@ const getGsocOrganizations = async (req, res) => {
     }
 };
 exports.getGsocOrganizations = getGsocOrganizations;
+const getGsocOrganizationsNames = async (req, res) => {
+    try {
+        // Fetch filters and pagination parameters from the query
+        // Fetch filtered and paginated organizations
+        const filteredOrganizations = await db_1.db.collection('gsoc_orgs')
+            .find({}) // Search entire collection with the query
+            .project({ _id: 0, organisation: 1, github: 1 }) // Exclude _id field
+            .toArray();
+        // Return the filtered organizations with pagination metadata
+        res.json({
+            organizations: filteredOrganizations,
+        });
+    }
+    catch (error) {
+        console.error('Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.getGsocOrganizationsNames = getGsocOrganizationsNames;
 const getUnassignedIssues = async (req, res) => {
     try {
         const org = req.query.org;
