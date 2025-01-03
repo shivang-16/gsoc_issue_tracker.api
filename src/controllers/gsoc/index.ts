@@ -3,6 +3,7 @@ import { db } from '../../db/db';
 import axios from 'axios';
 import { GITHUB_API_URL } from '../../config/env';
 import { getOrgName } from '../../services/gsoc';
+import mongoose from 'mongoose';
 
 export const getGsocOrganizations = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -142,40 +143,42 @@ export const getPopularIssues = async (req: Request, res: Response): Promise<voi
         const parsedLimit = parseInt(limit as string, 10);
         const skip = (parsedPage - 1) * parsedLimit;
 
+        console.log(organizations, "here is the org names");
         // Step 1: Build the query with optional filters
         const query: any = {};
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
 
-
-        // Step 2: Fetch issues from the database, filtering and sorting by date and comments
+        // Step 2: Fetch issues from the database, filtering by labels and sorting by date and comments
         const totalDocuments = await db.collection('gsoc_issues').countDocuments(query);
-        const issues = await db.collection('gsoc_issues')
+        const allIssues = await db.collection('gsoc_issues')
             .find(query)
             .sort({ comments: -1, created_at: -1 })
-            .skip(skip) // Skip documents for pagination
-            .limit(parsedLimit) // Limit results per page
-            .toArray();
+            .toArray();  // Fetch all issues without pagination for organization filtering
 
         // Step 3: If organizations are provided, filter issues by organization
         const orgRegex = new RegExp(orgNames.join('|'), 'i');
         const filteredIssues = orgNames.length > 0
-            ? issues.filter((issue: any) => {
+            ? allIssues.filter((issue: any) => {
                 const orgNameFromUrl = issue.html_url.split('https://github.com/')[1]?.split('/')[0];
                 return orgRegex.test(orgNameFromUrl);
             })
-            : issues;
+            : allIssues;
+
+        // Step 4: Apply pagination to the filtered issues
+        const paginatedIssues = filteredIssues.slice(skip, skip + parsedLimit);
 
         // Calculate total pages
-        const totalPages = Math.ceil(totalDocuments / parsedLimit);
+        const totalPages = Math.ceil(filteredIssues.length / parsedLimit);
+        // console.log(paginatedIssues, "here are the total pages");
 
         // Return paginated popular issues with metadata
         res.json({
             currentPage: parsedPage,
             totalPages,
-            totalDocuments,
-            issues: filteredIssues,
+            totalDocuments: filteredIssues.length,
+            issues: paginatedIssues,
         });
 
     } catch (error: any) {
@@ -274,6 +277,8 @@ export const getPopularIssuesAndSave = async (req: Request, res: Response): Prom
             }
         });
 
+        console.log(popularIssues.length, "here are the popular issues");
+
         // Return the popular issues
         res.json(popularIssues.slice(0, 200));
     } catch (error: any) {
@@ -281,3 +286,27 @@ export const getPopularIssuesAndSave = async (req: Request, res: Response): Prom
         res.status(500).json({ error: error.message });
     }
 };
+
+export const getOrganizationDetails = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const  orgId  = req.query.orgId as string;
+        console.log(orgId, "here is the org id");
+
+        if (!orgId) {
+            return res.status(400).json({ error: 'Organization ID is required' });
+        }
+
+        const organizationDetails = await db.collection('gsoc_orgs').findOne({ _id: new mongoose.Types.ObjectId(orgId) });
+
+        // console.log(organizationDetails, "here is the org details");
+        if (!organizationDetails) {
+            return res.status(404).json({ error: 'Organization not found' });
+        }
+
+        res.json(organizationDetails);
+    } catch (error: any) {
+        console.error('Error fetching organization details:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
