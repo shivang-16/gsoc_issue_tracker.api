@@ -129,30 +129,32 @@ const getPopularIssues = async (req, res) => {
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
-        // Step 2: Fetch issues from the database, filtering and sorting by date and comments
+        console.log(query, 'here is the query');
+        // Step 2: Fetch issues from the database, filtering by labels and sorting by date and comments
         const totalDocuments = await db_1.db.collection('gsoc_issues').countDocuments(query);
-        const issues = await db_1.db.collection('gsoc_issues')
+        const allIssues = await db_1.db.collection('gsoc_issues')
             .find(query)
             .sort({ comments: -1, created_at: -1 })
-            .skip(skip) // Skip documents for pagination
-            .limit(parsedLimit) // Limit results per page
-            .toArray();
+            .toArray(); // Fetch all issues without pagination for organization filtering
         // Step 3: If organizations are provided, filter issues by organization
         const orgRegex = new RegExp(orgNames.join('|'), 'i');
         const filteredIssues = orgNames.length > 0
-            ? issues.filter((issue) => {
+            ? allIssues.filter((issue) => {
                 const orgNameFromUrl = issue.html_url.split('https://github.com/')[1]?.split('/')[0];
+                console.log(orgNameFromUrl, "here is the org name from url");
                 return orgRegex.test(orgNameFromUrl);
             })
-            : issues;
+            : allIssues;
+        // Step 4: Apply pagination to the filtered issues
+        const paginatedIssues = filteredIssues.slice(skip, skip + parsedLimit);
         // Calculate total pages
-        const totalPages = Math.ceil(totalDocuments / parsedLimit);
+        const totalPages = Math.ceil(filteredIssues.length / parsedLimit);
         // Return paginated popular issues with metadata
         res.json({
             currentPage: parsedPage,
             totalPages,
-            totalDocuments,
-            issues: filteredIssues,
+            totalDocuments: filteredIssues.length,
+            issues: paginatedIssues,
         });
     }
     catch (error) {
