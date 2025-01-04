@@ -44,11 +44,20 @@ const gsoc_1 = __importDefault(require("./routes/gsoc"));
 const data_1 = __importDefault(require("./routes/data"));
 const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const express_winston_1 = __importDefault(require("express-winston"));
+const winston_1 = __importDefault(require("winston"));
 // Load environment variables
 (0, dotenv_1.config)({
     path: "./.env",
 });
 exports.app = (0, express_1.default)();
+exports.app.use(express_winston_1.default.logger({
+    transports: [new winston_1.default.transports.Console()],
+    format: winston_1.default.format.combine(winston_1.default.format.colorize(), winston_1.default.format.cli()),
+    meta: true,
+    expressFormat: true,
+    colorize: true,
+}));
 // Middleware
 exports.app.use(((0, cookie_parser_1.default)()));
 exports.app.use(express_1.default.json());

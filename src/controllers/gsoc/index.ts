@@ -129,63 +129,64 @@ export const getUnassignedIssues = async (req: Request, res: Response): Promise<
 
 export const getPopularIssues = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { label, organizations, page = '1', limit = '25' } = req.query; // Add pagination parameters
-        const currentDate = new Date();
-        const startOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-        const startOfPreviousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
 
-        // Ensure organizations is an array and label is a string
-        const orgNames = Array.isArray(organizations) ? organizations : organizations ? [organizations] : [];
-        const labelString = label ? String(label) : '';
+        const { label, organizations, page = '1', limit = '25' } = req.query;
 
-        // Parse pagination parameters
+        // Parse query parameters
         const parsedPage = parseInt(page as string, 10);
         const parsedLimit = parseInt(limit as string, 10);
         const skip = (parsedPage - 1) * parsedLimit;
 
-        console.log(organizations, "here is the org names");
-        // Step 1: Build the query with optional filters
+        const orgNames = Array.isArray(organizations) ? organizations : organizations ? [organizations] : [];
+        const labelString = label ? String(label) : '';
+
+        // console.log(orgNames, "here are the org names");
+
+        // Step 1: Build the query
         const query: any = {};
         if (labelString) {
             query.labels = { $elemMatch: { name: { $regex: labelString, $options: 'i' } } };
         }
 
-        // Step 2: Fetch issues from the database, filtering by labels and sorting by date and comments
+        if (orgNames.length > 0) {
+            query.html_url = {
+                $regex: `https://github.com/(${orgNames.join('|')})/`,
+                $options: 'i',
+            };
+        }
+
+        // console.log(query, "here is the query");
+
+        // Step 2: Fetch total documents count for metadata
         const totalDocuments = await db.collection('gsoc_issues').countDocuments(query);
-        const allIssues = await db.collection('gsoc_issues')
+
+        // Step 3: Fetch paginated issues directly from the database
+        const issues = await db.collection('gsoc_issues')
             .find(query)
-            .sort({created_at: -1 })
-            .toArray();  // Fetch all issues without pagination for organization filtering
+            .sort({ created_at: -1 }) // Sort by creation date
+            .skip(skip) // Skip documents for pagination
+            .limit(parsedLimit) // Limit documents for pagination
+            .toArray();
 
-        // Step 3: If organizations are provided, filter issues by organization
-        const orgRegex = new RegExp(orgNames.join('|'), 'i');
-        const filteredIssues = orgNames.length > 0
-            ? allIssues.filter((issue: any) => {
-                const orgNameFromUrl = issue.html_url.split('https://github.com/')[1]?.split('/')[0];
-                return orgRegex.test(orgNameFromUrl);
-            })
-            : allIssues;
+        // Step 4: Calculate total pages
+        const totalPages = Math.ceil(totalDocuments / parsedLimit);
 
-        // Step 4: Apply pagination to the filtered issues
-        const paginatedIssues = filteredIssues.slice(skip, skip + parsedLimit);
+        console.log(issues.length, "here are the paginated issues");
 
-        // Calculate total pages
-        const totalPages = Math.ceil(filteredIssues.length / parsedLimit);
-        // console.log(paginatedIssues, "here are the total pages");
-
-        // Return paginated popular issues with metadata
+        // Step 5: Return the response
         res.json({
             currentPage: parsedPage,
             totalPages,
-            totalDocuments: filteredIssues.length,
-            issues: paginatedIssues,
+            totalDocuments,
+            issues,
         });
-
     } catch (error: any) {
         console.error("Error fetching popular issues:", error);
         res.status(500).json({ error: error.message });
     }
 };
+
+
 
 
 

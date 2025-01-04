@@ -5,6 +5,8 @@ import goscRoutes from './routes/gsoc';
 import dataRoutes from './routes/data';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
+import expressWinston from "express-winston";
+import winston from "winston";
 
 // Load environment variables
 config({
@@ -13,6 +15,19 @@ config({
   
 
 export const app: Application = express();
+app.use(
+  expressWinston.logger({
+    transports: [new winston.transports.Console()],
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.cli()
+    ),
+    meta: true,
+    expressFormat: true,
+    colorize: true,
+  })
+);
+
 
 // Middleware
 app.use((cookieParser()));
