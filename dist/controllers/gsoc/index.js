@@ -9,11 +9,11 @@ const axios_1 = __importDefault(require("axios"));
 const env_1 = require("../../config/env");
 const gsoc_1 = require("../../services/gsoc");
 const mongoose_1 = __importDefault(require("mongoose"));
+const github_1 = require("../../services/github");
 const getGsocOrganizations = async (req, res) => {
     try {
         // Fetch filters and pagination parameters from the query
         const { top, filters } = req.query;
-        console.log('Filters:', filters); // Log the filters
         // Parse filters
         const parsedFilters = filters ? JSON.parse(filters) : {};
         const { technologies = [], topics = [], gsoc_years = [], organization = '', page = '1', limit = '10' } = parsedFilters;
@@ -31,7 +31,6 @@ const getGsocOrganizations = async (req, res) => {
         if (gsoc_years.length > 0) {
             query.$or = gsoc_years.map((year) => ({ [`gsoc_years.${year}`]: { $exists: true } }));
         }
-        console.log(query, 'here is the query');
         // Define sorting criteria
         const sortCriteria = {
             followers: -1, // Sort by followers descending
@@ -93,12 +92,10 @@ const getUnassignedIssues = async (req, res) => {
             headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
         });
         const repos = reposResponse.data;
-        // console.log(repos, "here are repos");
         // Find the repository with the most open issues
         const repoWithMostOpenIssues = repos.reduce((prev, current) => {
             return (prev.open_issues > current.open_issues) ? prev : current;
         });
-        // console.log(repoWithMostOpenIssues, "repo with most open issues");
         // Fetch issues for the repository with the most open issues
         const issuesResponse = await axios_1.default.get(`${env_1.GITHUB_API_URL}/repos/${org}/${repoWithMostOpenIssues.name}/issues?state=open`, { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } });
         const issues = issuesResponse.data;
@@ -119,9 +116,12 @@ const getPopularIssues = async (req, res) => {
         const parsedPage = parseInt(page, 10);
         const parsedLimit = parseInt(limit, 10);
         const skip = (parsedPage - 1) * parsedLimit;
-        const orgNames = Array.isArray(organizations) ? organizations : organizations ? [organizations] : [];
+        const orgNames = Array.isArray(organizations)
+            ? organizations
+            : organizations && typeof organizations === 'string'
+                ? organizations.split(',').map(org => org.trim())
+                : [];
         const labelString = label ? String(label) : '';
-        // console.log(orgNames, "here are the org names");
         // Step 1: Build the query
         const query = {};
         if (labelString) {
@@ -133,20 +133,26 @@ const getPopularIssues = async (req, res) => {
                 $options: 'i',
             };
         }
-        // console.log(query, "here is the query");
         // Step 2: Fetch total documents count for metadata
         const totalDocuments = await db_1.db.collection('gsoc_issues').countDocuments(query);
         // Step 3: Fetch paginated issues directly from the database
-        const issues = await db_1.db.collection('gsoc_issues')
+        let issues = await db_1.db.collection('gsoc_issues')
             .find(query)
             .sort({ created_at: -1 }) // Sort by creation date
             .skip(skip) // Skip documents for pagination
             .limit(parsedLimit) // Limit documents for pagination
             .toArray();
-        // Step 4: Calculate total pages
+        // Step 4: If no issues are found and orgNames are provided, fetch unassigned issues for each organization
+        if (issues.length === 0 && orgNames.length > 0) {
+            console.log("No issues found, fetching unassigned issues...");
+            const unassignedIssuesPromises = orgNames.map(org => (0, github_1.getOrgsUnassignedIssues)([org]));
+            const unassignedIssuesArray = await Promise.all(unassignedIssuesPromises);
+            // Combine issues from all organizations
+            issues = unassignedIssuesArray.flat();
+        }
+        // Step 5: Calculate total pages
         const totalPages = Math.ceil(totalDocuments / parsedLimit);
-        console.log(issues.length, "here are the paginated issues");
-        // Step 5: Return the response
+        // Step 6: Return the response
         res.json({
             currentPage: parsedPage,
             totalPages,
@@ -228,7 +234,6 @@ const getPopularIssuesAndSave = async (req, res) => {
                 return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // Sort by date descending
             }
         });
-        console.log(popularIssues.length, "here are the popular issues");
         // Return the popular issues
         res.json(popularIssues.slice(0, 200));
     }
@@ -241,7 +246,6 @@ exports.getPopularIssuesAndSave = getPopularIssuesAndSave;
 const getOrganizationDetails = async (req, res) => {
     try {
         const orgId = req.query.orgId;
-        console.log(orgId, "here is the org id");
         if (!orgId) {
             return res.status(400).json({ error: 'Organization ID is required' });
         }

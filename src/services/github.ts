@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { GITHUB_API_URL } from '../config/env';
+import { db } from '../db/db';
 
 
 // Fetch repositories for a given organization
@@ -92,3 +94,55 @@ export const fetchIssuesForOrg = async (org: string): Promise<any[]> => {
     }
 };
 
+
+export const getOrgsUnassignedIssues = async (orgs: any[]): Promise<any[]> => {
+    try {
+        const allUnassignedIssues: any[] = [];
+
+        console.log("Fetching unassigned issues for organizations:", orgs);
+
+        for (const org of orgs) {
+            // Fetch repositories for the organization
+            const reposResponse = await axios.get(`${GITHUB_API_URL}/orgs/${org}/repos`, {
+                headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
+            });
+
+            const repos = reposResponse.data;
+
+            // Sort repositories by open issues count and take the top 5
+            const topRepos = repos
+                .sort((a: { open_issues: number }, b: { open_issues: number }) => b.open_issues - a.open_issues)
+                .slice(0, 5);
+
+            for (const repo of topRepos) {
+                // Fetch issues for each repository
+                const issuesResponse = await axios.get(
+                    `${GITHUB_API_URL}/repos/${org}/${repo.name}/issues?state=open`,
+                    { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } }
+                );
+
+                const issues = issuesResponse.data;
+
+                for (const issue of issues) {
+                    // Upsert issue into the database
+                    db.collection('gsoc_issues').updateOne(
+                        { id: issue.id },
+                        { $set: issue },
+                        { upsert: true }
+                    );
+                    // Filter unassigned issues and add them to the results
+                    if (!issue.assignee) {
+                        allUnassignedIssues.push(issue);
+                    }
+                }
+            }
+        }
+
+        console.log("Fetched unassigned issues for organizations:", orgs);
+        // Return up to 50 unassigned issues
+        return allUnassignedIssues.slice(0, 50);
+    } catch (error: any) {
+        console.error("Error fetching unassigned issues:", error.message);
+        return [];
+    }
+};

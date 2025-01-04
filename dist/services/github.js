@@ -3,8 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchIssuesForOrg = exports.fetchGitHubIssues = exports.fetchGitHubRepos = void 0;
+exports.getOrgsUnassignedIssues = exports.fetchIssuesForOrg = exports.fetchGitHubIssues = exports.fetchGitHubRepos = void 0;
 const axios_1 = __importDefault(require("axios"));
+const env_1 = require("../config/env");
+const db_1 = require("../db/db");
 // Fetch repositories for a given organization
 const fetchGitHubRepos = async (org) => {
     const url = `https://api.github.com/orgs/${org}/repos`;
@@ -89,3 +91,41 @@ const fetchIssuesForOrg = async (org) => {
     }
 };
 exports.fetchIssuesForOrg = fetchIssuesForOrg;
+const getOrgsUnassignedIssues = async (orgs) => {
+    try {
+        const allUnassignedIssues = [];
+        console.log("Fetching unassigned issues for organizations:", orgs);
+        for (const org of orgs) {
+            // Fetch repositories for the organization
+            const reposResponse = await axios_1.default.get(`${env_1.GITHUB_API_URL}/orgs/${org}/repos`, {
+                headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
+            });
+            const repos = reposResponse.data;
+            // Sort repositories by open issues count and take the top 5
+            const topRepos = repos
+                .sort((a, b) => b.open_issues - a.open_issues)
+                .slice(0, 5);
+            for (const repo of topRepos) {
+                // Fetch issues for each repository
+                const issuesResponse = await axios_1.default.get(`${env_1.GITHUB_API_URL}/repos/${org}/${repo.name}/issues?state=open`, { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } });
+                const issues = issuesResponse.data;
+                for (const issue of issues) {
+                    // Upsert issue into the database
+                    db_1.db.collection('gsoc_issues').updateOne({ id: issue.id }, { $set: issue }, { upsert: true });
+                    // Filter unassigned issues and add them to the results
+                    if (!issue.assignee) {
+                        allUnassignedIssues.push(issue);
+                    }
+                }
+            }
+        }
+        console.log("Fetched unassigned issues for organizations:", orgs);
+        // Return up to 50 unassigned issues
+        return allUnassignedIssues.slice(0, 50);
+    }
+    catch (error) {
+        console.error("Error fetching unassigned issues:", error.message);
+        return [];
+    }
+};
+exports.getOrgsUnassignedIssues = getOrgsUnassignedIssues;

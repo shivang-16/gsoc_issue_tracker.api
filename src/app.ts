@@ -1,6 +1,5 @@
 import express, { Application, urlencoded } from 'express';
 import {config} from 'dotenv';
-import issueRoutes from './routes/issueRoutes';
 import goscRoutes from './routes/gsoc';
 import dataRoutes from './routes/data';
 import cors from 'cors';
@@ -60,7 +59,6 @@ app.get('/', async (req, res) => {
     res.send('Server is working!');
 });
 
-app.use('/api/issues', issueRoutes);
 app.use('/api/gsoc', goscRoutes);
 app.use('/api/data', dataRoutes);
 
